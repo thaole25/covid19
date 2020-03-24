@@ -37,11 +37,12 @@ def prophet_calculation(df_train, label):
   for i in range(1, len(forecast)):
     if forecast.loc[i - 1, 'yhat'] > forecast.loc[i, 'yhat']:
       forecast.loc[i, 'yhat'] = forecast.loc[i - 1, 'yhat']
-  forecast['old'] = selected_df_train[label] # 'old' is old label
-  for i in range(len(forecast)):
-    if not math.isnan(forecast.loc[i, 'old']):
-      forecast.loc[i, label] = forecast.loc[i, 'old']
-    else:
+  # forecast['old'] = selected_df_train[label] # 'old' is old label
+  forecast.loc[0, label] = selected_df_train.loc[0, label]
+  for i in range(1, len(forecast)):
+    # if not math.isnan(forecast.loc[i, 'old']):
+      # forecast.loc[i, label] = forecast.loc[i, 'old']
+    # else:
       forecast.loc[i, label] = forecast.loc[i - 1, label] + forecast.loc[i, 'yhat']
 
   forecast = forecast[['ds', label]]
