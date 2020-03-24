@@ -18,11 +18,7 @@ def prophet_calculation(df_train, label):
   selected_df_train = df_train[['Date', label]]
   selected_df_train.reset_index(inplace=True)
   selected_df_train.rename(columns={'Date': 'ds'}, inplace=True)
-
-  # difference between two consecutive days
-  selected_df_train['y'] = selected_df_train[label] - selected_df_train[label].shift(1)
-  selected_df_train.loc[0, 'y'] = 0
-  # print_all_rows(selected_df_train)
+  selected_df_train.rename(columns={label: 'y'}, inplace=True)
 
   # Train the model
   model = Prophet(growth='linear')
@@ -37,16 +33,9 @@ def prophet_calculation(df_train, label):
   for i in range(1, len(forecast)):
     if forecast.loc[i - 1, 'yhat'] > forecast.loc[i, 'yhat']:
       forecast.loc[i, 'yhat'] = forecast.loc[i - 1, 'yhat']
-  # forecast['old'] = selected_df_train[label] # 'old' is old label
-  forecast.loc[0, label] = selected_df_train.loc[0, label]
-  for i in range(1, len(forecast)):
-    # if not math.isnan(forecast.loc[i, 'old']):
-      # forecast.loc[i, label] = forecast.loc[i, 'old']
-    # else:
-      forecast.loc[i, label] = forecast.loc[i - 1, label] + forecast.loc[i, 'yhat']
 
-  forecast = forecast[['ds', label]]
-  forecast = forecast.round({label: 0})
+  forecast = forecast[['ds', 'yhat']]
+  forecast = forecast.round({'yhat': 0})
   forecast.rename(columns={'ds': 'Date'}, inplace=True)
   forecast = forecast.set_index('Date')
   # print_all_rows(forecast)
@@ -80,14 +69,14 @@ if __name__ == "__main__":
 
     forecast_case = prophet_calculation(df_train_region, "ConfirmedCases")
     forecast_fatalities = prophet_calculation(df_train_region, "Fatalities")
-    df_test_region['ConfirmedCases'] = forecast_case['ConfirmedCases']
-    df_test_region['Fatalities'] = forecast_fatalities['Fatalities']
+    df_test_region['ConfirmedCases'] = forecast_case['yhat']
+    df_test_region['Fatalities'] = forecast_fatalities['yhat']
     df_test_region = df_test_region[['ForecastId', 'ConfirmedCases', 'Fatalities']]
     df_test_region['ConfirmedCases'] = df_test_region['ConfirmedCases'].astype(np.int64)
     df_test_region['Fatalities'] = df_test_region['Fatalities'].astype(np.int64)
-    # print_all_rows(df_test_region)
+    print_all_rows(df_test_region)
     submission_df = submission_df.append(df_test_region, ignore_index=True)
-    # if count == 1:
-    #   break
-    # count += 1
+    if count == 1:
+      break
+    count += 1
   submission_df.to_csv('submission.csv', index=False)
