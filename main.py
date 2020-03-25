@@ -2,7 +2,7 @@ import math
 import pandas as pd
 import numpy as np
 
-DATA_FOLDER = '' #'../input/covid19-global-forecasting-week-1/'
+DATA_FOLDER = 'data/' #'../input/covid19-global-forecasting-week-1/'
 
 def read_data_training():
   df_train = pd.read_csv(DATA_FOLDER + 'train.csv')
@@ -12,7 +12,7 @@ def read_data_training():
 def print_all_rows(df):
   pd.set_option('display.max_rows', df.shape[0]+1)
   print(df)
-    
+
 def prophet_calculation(df_train, label):
   from fbprophet import Prophet
   selected_df_train = df_train[['Date', label]]
@@ -22,22 +22,26 @@ def prophet_calculation(df_train, label):
   # difference between two consecutive days
   selected_df_train['y'] = selected_df_train[label] - selected_df_train[label].shift(1)
   selected_df_train.loc[0, 'y'] = 0
-  # print_all_rows(selected_df_train)
 
   # Train the model
   model = Prophet(growth='linear')
   model.fit(selected_df_train)
 
-  # Predict the future
+  # Predict the change (difference between two consecutive days)
   future_df = model.make_future_dataframe(periods=50)
   forecast = model.predict(future_df)
+  forecast['old'] = selected_df_train[label] # 'old' is old value of 'label' (confirmed cases or fatalities)
   forecast['yhat'] = pd.to_numeric(forecast['yhat'])
   forecast.loc[forecast['yhat'] < 0, ['yhat']] = 0
   # Ensure that 'yhat' is always increasing
   for i in range(1, len(forecast)):
     if forecast.loc[i - 1, 'yhat'] > forecast.loc[i, 'yhat']:
       forecast.loc[i, 'yhat'] = forecast.loc[i - 1, 'yhat']
-  forecast['old'] = selected_df_train[label] # 'old' is old label
+  # Lower 'yhat' value by subtracting to the min value
+  min_value = forecast['yhat'].min()
+  forecast['yhat'] = forecast['yhat'].apply(lambda x: x - min_value)
+
+  # Get prediction of 'label' (confirmed cases or fatalities)
   for i in range(len(forecast)):
     if not math.isnan(forecast.loc[i, 'old']):
       forecast.loc[i, label] = forecast.loc[i, 'old']
@@ -48,15 +52,7 @@ def prophet_calculation(df_train, label):
   forecast = forecast.round({label: 0})
   forecast.rename(columns={'ds': 'Date'}, inplace=True)
   forecast = forecast.set_index('Date')
-  # print_all_rows(forecast)
   return forecast
-
-def rmsle(actual_value, predicted_value):
-  '''
-  root mean square logarithmic error
-  '''
-  y_true, y_predict = np.array(actual_value), np.array(predicted_value)
-  return math.sqrt(np.mean((np.log(y_predict + 1) - np.log(y_true + 1))**2))
 
 if __name__ == "__main__":
   # Create submission dataframe
@@ -72,7 +68,7 @@ if __name__ == "__main__":
   coordinates = list(dict.fromkeys(coordinates))
   count = 0
   for coordinate in coordinates:
-    print(coordinate)
+    # print(coordinate)
     df_train_region = df_train[((df_train['Lat'] == coordinate[0]) & (df_train['Long'] == coordinate[1]) & (df_train['Country/Region'] == coordinate[2]))]
     df_test_region = df_test[((df_test['Lat'] == coordinate[0]) & (df_test['Long'] == coordinate[1]) & (df_test['Country/Region'] == coordinate[2]))]
     df_test_region = df_test_region.set_index('Date')
